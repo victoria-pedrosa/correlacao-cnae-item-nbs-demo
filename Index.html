@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--verde:#0B4D3B;--verde2:#136B52;--claro:#EAF2EE;--borda:#DDE3E0;--texto:#1F2A26;--cinza:#6B7672;--erro:#C62F3A}
+  *{box-sizing:border-box}
+  body{margin:0;background:#F4F6F5;font-family:Montserrat,Arial,sans-serif;color:var(--texto)}
+  .card{max-width:980px;margin:24px auto;background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.06);padding:28px 36px 32px}
+  h1{color:var(--verde);text-align:center;font-size:26px;margin:0 0 22px}
+  label{font-weight:600;font-size:14px;color:#4A5551;display:block;margin-bottom:8px}
+  .campo{position:relative}
+  input{width:100%;font:inherit;font-size:16px;padding:14px 16px;border:2px solid var(--borda);border-radius:10px;outline:none}
+  input:focus{border-color:var(--verde2)}
+  .dica{font-size:12px;color:var(--cinza);margin-top:6px}
+  #sug{position:static;margin-top:6px;background:#fff;border:1px solid var(--borda);border-radius:10px;
+       box-shadow:0 10px 24px rgba(0,0,0,.10);max-height:300px;overflow:auto;z-index:10;display:none}
+  .op{padding:10px 14px;cursor:pointer;border-bottom:1px solid #F0F3F1;display:flex;gap:12px;align-items:baseline}
+  .op:last-child{border-bottom:0}
+  .op:hover,.op.ativa{background:var(--claro)}
+  .op b{color:var(--verde);min-width:88px;font-variant-numeric:tabular-nums}
+  .op span{font-size:14px}
+  .op small{margin-left:auto;color:var(--cinza);white-space:nowrap}
+  mark{background:#FFE9A8;padding:0 1px;border-radius:2px}
+  button.buscar{width:100%;margin-top:18px;background:var(--verde);color:#fff;border:0;border-radius:10px;
+       padding:15px;font:inherit;font-weight:700;font-size:16px;cursor:pointer}
+  button.buscar:hover{background:var(--verde2)}
+  button.buscar:disabled{opacity:.6;cursor:wait}
+  .msg{margin-top:22px;padding:14px 18px;border-radius:10px;border-left:4px solid}
+  .msg.erro{background:#FFF3F3;border-color:var(--erro);color:#9B2230}
+  .msg.info{background:var(--claro);border-color:var(--verde);color:var(--verde)}
+  .cab{margin-top:24px;padding:16px 18px;background:var(--claro);border-radius:10px}
+  .cab .cod{font-size:20px;font-weight:700;color:var(--verde)}
+  .cab .desc{margin-top:2px}
+  .cab .res{font-size:13px;color:var(--cinza);margin-top:6px}
+  details.item{margin-top:14px;border:1px solid var(--borda);border-radius:10px;overflow:hidden}
+  details.item>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;gap:12px;align-items:center;background:#fff}
+  details.item>summary::-webkit-details-marker{display:none}
+  details.item>summary:before{content:'▸';color:var(--verde);font-size:14px;transition:transform .15s}
+  details.item[open]>summary:before{transform:rotate(90deg)}
+  details.item[open]>summary{border-bottom:1px solid var(--borda);background:#FAFCFB}
+  .tag{background:var(--verde);color:#fff;font-weight:700;border-radius:6px;padding:3px 8px;font-size:13px}
+  .qtd{margin-left:auto;font-size:12px;color:var(--cinza);white-space:nowrap}
+  .wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:var(--verde);color:#fff;text-align:left;padding:9px 10px;font-weight:600;white-space:nowrap}
+  td{padding:10px;border-bottom:1px solid #EEF1EF;vertical-align:top}
+  tr:nth-child(even) td{background:#FAFCFB}
+  td.nbs{font-weight:700;white-space:nowrap;color:var(--verde)}
+  .cc{display:block;margin-bottom:4px}
+  .cc b{display:inline-block;min-width:54px}
+  .pill{display:inline-block;background:#EEF1EF;border-radius:5px;padding:1px 6px;margin:0 4px 4px 0;font-size:12px}
+  .vazio{padding:14px 18px;color:var(--cinza);font-size:13px}
+  .lista .op{border:1px solid var(--borda);border-radius:8px;margin-top:8px}
+  .acoes{display:flex;gap:14px;justify-content:flex-end;margin-top:14px;font-size:13px}
+  .acoes a{color:var(--verde2);cursor:pointer;text-decoration:underline}
+  @media (max-width:640px){.card{margin:0;border-radius:0;padding:20px 16px}.op b{min-width:78px}.op small{display:none}}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Consulta de Correlação Fiscal</h1>
+  <label for="q">CNAE, Item da Lista ou palavra-chave</label>
+  <div class="campo">
+    <input id="q" autocomplete="off" placeholder="Ex.: 7112000, 7112-0/00, 07.01 ou engenharia">
+    <div id="sug"></div>
+  </div>
+  <div class="dica" id="dica">Carregando a lista de CNAEs...</div>
+  <button class="buscar" id="btn">Buscar Correlações</button>
+  <div id="saida"></div>
+</div>
+
+<script>
+var INDICE = [];
+var ativa = -1, atuais = [];
+var $q = document.getElementById('q'), $sug = document.getElementById('sug'),
+    $saida = document.getElementById('saida'), $btn = document.getElementById('btn'), $dica = document.getElementById('dica');
+
+function sd(t){return String(t||'').replace(/\D/g,'');}
+function norm(t){return String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+/* ---------- sugestões enquanto digita ---------- */
+function filtrar(txt){
+  var temLetra=/[a-zà-ú]/i.test(txt), d=sd(txt), q=norm(txt);
+  if(!q) return [];
+  if(!temLetra){ if(!d) return []; return INDICE.filter(function(x){return x.d.indexOf(d)===0;}); }
+  var p=q.split(/\s+/).filter(String);
+  return INDICE.filter(function(x){var a=norm(x.t);return p.every(function(w){return a.indexOf(w)!==-1;});});
+}
+function realce(texto,txt){
+  var p=norm(txt).split(/\s+/).filter(function(w){return w.length>1;});
+  var h=esc(texto); if(!p.length||!/[a-z]/i.test(txt)) return h;
+  var base=norm(texto), marcas=[];
+  p.forEach(function(w){var i=base.indexOf(w); if(i>-1) marcas.push([i,i+w.length]);});
+  marcas.sort(function(a,b){return b[0]-a[0];});
+  var s=texto; marcas.forEach(function(m){ s=s.slice(0,m[0])+'\u0001'+s.slice(m[0],m[1])+'\u0002'+s.slice(m[1]); });
+  return esc(s).replace(/\u0001/g,'<mark>').replace(/\u0002/g,'</mark>');
+}
+function mostrarSug(){
+  var txt=$q.value; atuais=filtrar(txt).slice(0,30); ativa=-1;
+  if(!atuais.length){$sug.style.display='none';return;}
+  $sug.innerHTML=atuais.map(function(x,i){
+    return '<div class="op" data-i="'+i+'"><b>'+esc(x.c)+'</b><span>'+realce(x.t,txt)+'</span><small>'+x.i.length+(x.i.length>1?' itens':' item')+'</small></div>';
+  }).join('');
+  $sug.style.display='block';
+}
+function marcar(i){
+  var ops=$sug.querySelectorAll('.op'); ops.forEach(function(o){o.classList.remove('ativa');});
+  if(i>=0&&ops[i]){ops[i].classList.add('ativa');ops[i].scrollIntoView({block:'nearest'});}
+  ativa=i;
+}
+function escolher(x){ $q.value=x.c; $sug.style.display='none'; buscar(x.c); }
+
+$q.addEventListener('input',mostrarSug);
+$q.addEventListener('focus',function(){ if($q.value) mostrarSug(); });
+$q.addEventListener('keydown',function(e){
+  var aberto=$sug.style.display==='block';
+  if(e.key==='ArrowDown'&&aberto){e.preventDefault();marcar(Math.min(ativa+1,atuais.length-1));}
+  else if(e.key==='ArrowUp'&&aberto){e.preventDefault();marcar(Math.max(ativa-1,0));}
+  else if(e.key==='Enter'){e.preventDefault(); if(aberto&&ativa>=0) escolher(atuais[ativa]); else {$sug.style.display='none';buscar($q.value);} }
+  else if(e.key==='Escape'){$sug.style.display='none';}
+});
+$sug.addEventListener('mousedown',function(e){
+  var op=e.target.closest('.op'); if(!op) return; e.preventDefault(); escolher(atuais[+op.dataset.i]);
+});
+document.addEventListener('click',function(e){ if(!e.target.closest('.campo')) $sug.style.display='none'; });
+$btn.addEventListener('click',function(){ $sug.style.display='none'; buscar($q.value); });
+
+/* ---------- busca no servidor ---------- */
+function buscar(termo){
+  termo=String(termo||'').trim();
+  if(!termo){ $saida.innerHTML='<div class="msg erro"><b>Digite um CNAE, item ou palavra.</b></div>'; return; }
+  $btn.disabled=true; $btn.textContent='Buscando...';
+  $saida.innerHTML='';
+  google.script.run.withSuccessHandler(function(r){ fim(); render(r); })
+    .withFailureHandler(function(err){ fim(); $saida.innerHTML='<div class="msg erro"><b>Não deu certo.</b> '+esc(err.message||err)+'</div>'; })
+    .buscar(termo);
+}
+function fim(){ $btn.disabled=false; $btn.textContent='Buscar Correlações'; }
+
+function render(r){
+  if(r.tipo==='nao_encontrado'){
+    $saida.innerHTML='<div class="msg erro"><b>✖ Nada encontrado para "'+esc(r.termo)+'".</b> Confira o código ou tente uma palavra do serviço (ex.: engenharia).</div>';return;
+  }
+  if(r.tipo==='lista'){
+    $saida.innerHTML='<div class="msg info">'+r.total+' CNAEs encontrados'+(r.total>50?' (mostrando 50)':'')+'. Escolha um:</div><div class="lista" id="lst">'+
+      r.cnaes.map(function(x,i){return '<div class="op" data-i="'+i+'"><b>'+esc(x.c)+'</b><span>'+esc(x.t)+'</span><small>'+x.i.length+(x.i.length>1?' itens':' item')+'</small></div>';}).join('')+'</div>';
+    document.getElementById('lst').addEventListener('click',function(e){var op=e.target.closest('.op'); if(op) escolher(r.cnaes[+op.dataset.i]);});
+    return;
+  }
+  var cab='';
+  var totalNbs=r.itens.reduce(function(s,x){return s+x.nbs.length;},0);
+  if(r.tipo==='cnae'){
+    cab='<div class="cab"><div class="cod">CNAE '+esc(r.cnae.c)+'</div><div class="desc">'+esc(r.cnae.t)+'</div>'+
+        '<div class="res">Ligado a '+r.itens.length+(r.itens.length>1?' itens':' item')+' da lista de serviços, com '+totalNbs+' NBS no total.</div></div>';
+  } else {
+    cab='<div class="cab"><div class="cod">'+esc(r.titulo)+'</div><div class="res">'+totalNbs+' NBS possíveis.</div></div>';
+  }
+  var html=r.itens.map(function(it,k){
+    var corpo = it.nbs.length ? '<div class="wrap"><table><thead><tr><th>NBS</th><th>Descrição do NBS</th><th>cIndOp</th><th>cClassTrib</th></tr></thead><tbody>'+
+      it.nbs.map(function(n){
+        return '<tr><td class="nbs">'+esc(n.nbs)+'</td><td>'+esc(n.descricao)+'</td><td>'+
+          n.indop.map(function(x){return '<span class="pill">'+esc(x)+'</span>';}).join('')+
+          '</td><td>'+n.cclass.map(function(c){return '<span class="cc"><b>'+esc(c.codigo)+'</b> '+esc(c.nome)+'</span>';}).join('')+'</td></tr>';
+      }).join('')+'</tbody></table></div>'
+      : '<div class="vazio">A Receita não trouxe NBS para esse item no Anexo VIII.</div>';
+    return '<details class="item"'+(k===0||r.itens.length<=2?' open':'')+'><summary><span class="tag">'+esc(it.item)+'</span><span>'+esc(it.descricao||'')+
+      '</span><span class="qtd">'+it.nbs.length+' NBS</span></summary>'+corpo+'</details>';
+  }).join('');
+  var acoes = r.itens.length>1 ? '<div class="acoes"><a id="abrir">Abrir todos</a><a id="fechar">Fechar todos</a></div>' : '';
+  $saida.innerHTML=cab+acoes+html;
+  if(acoes){
+    document.getElementById('abrir').onclick=function(){document.querySelectorAll('details.item').forEach(function(d){d.open=true;});};
+    document.getElementById('fechar').onclick=function(){document.querySelectorAll('details.item').forEach(function(d){d.open=false;});};
+  }
+}
+
+/* ---------- carrega a lista de CNAEs uma vez ---------- */
+google.script.run.withSuccessHandler(function(lista){
+  INDICE=lista||[];
+  $dica.textContent=INDICE.length.toLocaleString('pt-BR')+' CNAEs disponíveis. Pode digitar com ou sem pontuação.';
+  if($q.value) mostrarSug();
+}).withFailureHandler(function(err){
+  $dica.textContent='Não consegui carregar as sugestões ('+(err.message||err)+'). A busca pelo botão continua funcionando.';
+}).getIndiceCnae();
+</script>
+</body>
+</html>
